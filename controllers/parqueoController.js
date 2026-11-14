@@ -51,10 +51,12 @@ export const getParqueos = async (req, res) => {
             SELECT 
                 p.id, p.nombre, p.direccion, p.latitud, p.longitud, 
                 p.tarifa_por_hora, p.horario_apertura, p.horario_cierre, 
-                p.tipo_vehiculo, p.imagen_url, p.activo,
-                d.cupos_libres, d.cupos_ocupados, p.capacidad_total
+                p.tipo_vehiculo, p.imagen_url, p.activo, p.capacidad_total,
+                d.cupos_libres, d.cupos_ocupados,
+                u.telefono AS telefono_contacto 
             FROM parqueos p
             LEFT JOIN disponibilidad d ON p.id = d.parqueo_id
+            LEFT JOIN usuarios u ON p.id = u.parqueo_id AND u.rol = 'admin_parqueo'
             WHERE p.activo = TRUE
         `);
         res.json(rows);
