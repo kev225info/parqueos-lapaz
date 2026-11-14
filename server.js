@@ -3,7 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import authRoutes from './routes/authRoutes.js';
 import parqueoRoutes from './routes/parqueoRoutes.js';
-
+import adminRoutes from './routes/adminRoutes.js';
 dotenv.config();
 
 const app = express();
@@ -21,7 +21,7 @@ app.use(express.json());
 // Rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/parqueos', parqueoRoutes);
-
+app.use('/api/admin', adminRoutes);
 // Health check
 app.get('/', (req, res) => {
     res.json({ 

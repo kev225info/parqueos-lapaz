@@ -4,6 +4,7 @@ import { getParqueos, getFavoritos, toggleFavorito, updateDisponibilidad } from 
 const router = Router();
 
 router.get('/', getParqueos);
+router.get('/mi-parqueo', getMiParqueo);
 router.get('/favoritos/:usuarioId', getFavoritos);
 router.post('/favoritos', toggleFavorito);
 router.patch('/:parqueoId/disponibilidad', updateDisponibilidad); // <-- NUEVA RUTA

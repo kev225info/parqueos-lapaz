@@ -70,28 +70,56 @@ export const updateDisponibilidad = async (req, res) => {
     const { cupos_libres, cupos_ocupados, usuario_id } = req.body;
 
     try {
-        // 1. Obtener los cupos libres actuales para el historial
-        const [current] = await pool.query(
-            'SELECT cupos_libres FROM disponibilidad WHERE parqueo_id = ?', 
-            [parqueoId]
-        );
+        // 1. Verificar permisos del usuario
+        const [user] = await pool.query('SELECT rol, parqueo_id FROM usuarios WHERE id = ?', [usuario_id]);
+        if (user.length === 0) return res.status(401).json({ mensaje: 'Usuario no encontrado' });
+
+        const esSuperAdmin = user[0].rol === 'admin';
+        const esDueno = user[0].rol === 'admin_parqueo' && user[0].parqueo_id == parqueoId;
+
+        if (!esSuperAdmin && !esDueno) {
+            return res.status(403).json({ mensaje: 'No tienes permisos para modificar este parqueo' });
+        }
+
+        // 2. Obtener cupos anteriores para el historial
+        const [current] = await pool.query('SELECT cupos_libres FROM disponibilidad WHERE parqueo_id = ?', [parqueoId]);
         const cupos_anteriores = current.length > 0 ? current[0].cupos_libres : 0;
 
-        // 2. Actualizar la tabla de disponibilidad actual
+        // 3. Actualizar disponibilidad
         await pool.query(
             'UPDATE disponibilidad SET cupos_libres = ?, cupos_ocupados = ? WHERE parqueo_id = ?',
             [cupos_libres, cupos_ocupados, parqueoId]
         );
 
-        // 3. Registrar el cambio en el historial
+        // 4. Registrar en historial
         await pool.query(
             'INSERT INTO historial_disponibilidad (parqueo_id, cupos_libres_anterior, cupos_libres_nuevo, usuario_id) VALUES (?, ?, ?, ?)',
-            [parqueoId, cupos_anteriores, cupos_libres, usuario_id || null]
+            [parqueoId, cupos_anteriores, cupos_libres, usuario_id]
         );
 
-        res.json({ mensaje: 'Disponibilidad actualizada y registrada en el historial' });
+        res.json({ mensaje: 'Disponibilidad actualizada correctamente' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ mensaje: 'Error al actualizar la disponibilidad' });
+    }
+};
+
+export const getMiParqueo = async (req, res) => {
+    const { usuario_id } = req.query;
+    try {
+        const [rows] = await pool.query(`
+            SELECT p.id, p.nombre, p.direccion, p.latitud, p.longitud, p.tarifa_por_hora, 
+                   p.horario_apertura, p.horario_cierre, p.tipo_vehiculo, p.imagen_url, p.activo, p.capacidad_total,
+                   d.cupos_libres, d.cupos_ocupados
+            FROM parqueos p
+            JOIN usuarios u ON p.id = u.parqueo_id
+            LEFT JOIN disponibilidad d ON p.id = d.parqueo_id
+            WHERE u.id = ? AND u.rol = 'admin_parqueo'
+        `, [usuario_id]);
+        
+        if (rows.length === 0) return res.status(404).json({ mensaje: 'No tienes un parqueo asignado' });
+        res.json(rows[0]);
+    } catch (error) {
+        res.status(500).json({ mensaje: 'Error al obtener tu parqueo' });
     }
 };
