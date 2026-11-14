@@ -28,9 +28,9 @@ export const crearAdminParqueo = async (req, res) => {
         const hashedPassword = await bcrypt.hash(admin_password, 10);
 
         await pool.query(
-            `INSERT INTO usuarios (nombre, email, password, rol, parqueo_id) 
-             VALUES (?, ?, ?, 'admin_parqueo', ?)`,
-            [admin_nombre, admin_email, hashedPassword, nuevoParqueoId]
+            `INSERT INTO usuarios (nombre, email, telefono, password, rol, parqueo_id) 
+             VALUES (?, ?, ?, ?, 'admin_parqueo', ?)`,
+            [admin_nombre, admin_email, admin_celular, hashedPassword, nuevoParqueoId] // <-- Agregado admin_celular
         );
 
         res.status(201).json({ mensaje: 'Administrador de parqueo y parqueo creados exitosamente' });

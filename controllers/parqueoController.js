@@ -123,3 +123,46 @@ export const getMiParqueo = async (req, res) => {
         res.status(500).json({ mensaje: 'Error al obtener tu parqueo' });
     }
 };
+
+// OBTENER INFORMACIÓN COMPLETA DEL PARQUEO Y SU ADMINISTRADOR
+export const getParqueoCompleto = async (req, res) => {
+    const { usuario_id } = req.query;
+    try {
+        const [rows] = await pool.query(`
+            SELECT 
+                p.id AS parqueo_id,
+                p.nombre AS parqueo_nombre,
+                p.direccion,
+                p.latitud,
+                p.longitud,
+                p.capacidad_total,
+                p.tarifa_por_hora,
+                p.horario_apertura,
+                p.horario_cierre,
+                p.tipo_vehiculo,
+                p.descripcion,
+                p.imagen_url,
+                p.activo,
+                u.id AS admin_id,
+                u.nombre AS admin_nombre,
+                u.email AS admin_email,
+                u.telefono AS admin_telefono,
+                u.rol,
+                d.cupos_libres,
+                d.cupos_ocupados
+            FROM parqueos p
+            JOIN usuarios u ON p.id = u.parqueo_id
+            LEFT JOIN disponibilidad d ON p.id = d.parqueo_id
+            WHERE u.id = ? AND u.rol = 'admin_parqueo'
+        `, [usuario_id]);
+        
+        if (rows.length === 0) {
+            return res.status(404).json({ mensaje: 'No tienes un parqueo asignado' });
+        }
+        
+        res.json(rows[0]);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ mensaje: 'Error al obtener información del parqueo' });
+    }
+};
