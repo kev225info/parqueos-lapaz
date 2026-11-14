@@ -38,15 +38,9 @@ export const login = async (req, res) => {
 
         const user = users[0];
         
-        // NOTA: Los usuarios de prueba insertados en la Fase 5 tienen contraseñas en texto plano.
-        // Para que el login funcione con ellos, comparamos directamente. 
-        // Para usuarios nuevos registrados por la API, usamos bcrypt.
-        let isValidPassword = false;
-        if (user.password.startsWith('$2a$')) {
-            isValidPassword = await bcrypt.compare(password, user.password);
-        } else {
-            isValidPassword = (password === user.password); // Solo para datos de prueba iniciales
-        }
+      
+                // Verificación segura de contraseña usando bcrypt
+        const isValidPassword = await bcrypt.compare(password, user.password);
 
         if (!isValidPassword) {
             return res.status(401).json({ mensaje: 'Credenciales incorrectas' });
