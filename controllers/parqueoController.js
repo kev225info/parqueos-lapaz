@@ -168,3 +168,110 @@ export const getParqueoCompleto = async (req, res) => {
         res.status(500).json({ mensaje: 'Error al obtener información del parqueo' });
     }
 };
+
+// BÚSQUEDA INTELIGENTE DE PARQUEOS
+export const buscarParqueos = async (req, res) => {
+    const { query, lat, lng, radio_km } = req.query;
+
+    try {
+        // Zonas conocidas de La Paz para sugerencias
+        const zonasLaPaz = [
+            'Centro', 'Sopocachi', 'Miraflores', 'San Miguel', 'Calacoto',
+            'San Pedro', 'Obrajes', 'Cota Cota', 'Irpavi', 'Achumani',
+            'Villa Fátima', 'Pampahasi', 'Munaypata', 'Gran Poder'
+        ];
+
+        if (!query || query.trim().length < 2) {
+            return res.json({ 
+                resultados: [], 
+                sugerencias: zonasLaPaz.slice(0, 5),
+                mensaje: 'Escribe al menos 2 caracteres para buscar'
+            });
+        }
+
+        // Normalizar query (quitar tildes, lowercase, trim)
+        const queryNormalizada = query.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .trim();
+
+        // Búsqueda principal: por nombre o dirección normalizada
+        const [resultados] = await pool.query(`
+            SELECT 
+                p.id, p.nombre, p.direccion, p.latitud, p.longitud,
+                p.tarifa_por_hora, p.horario_apertura, p.horario_cierre,
+                p.tipo_vehiculo, p.imagen_url, p.activo, p.capacidad_total,
+                d.cupos_libres, d.cupos_ocupados,
+                u.telefono AS telefono_contacto
+            FROM parqueos p
+            LEFT JOIN disponibilidad d ON p.id = d.parqueo_id
+            LEFT JOIN usuarios u ON p.id = u.parqueo_id AND u.rol = 'admin_parqueo'
+            WHERE p.activo = TRUE
+            AND (
+                p.nombre_normalizado LIKE ? 
+                OR LOWER(p.direccion) LIKE ?
+                OR LOWER(p.nombre) LIKE ?
+            )
+            ORDER BY p.nombre ASC
+            LIMIT 20
+        `, [`%${queryNormalizada}%`, `%${queryNormalizada}%`, `%${query.toLowerCase()}%`]);
+
+        // Si hay resultados, devolverlos
+        if (resultados.length > 0) {
+            return res.json({
+                resultados,
+                sugerencias: [],
+                total: resultados.length
+            });
+        }
+
+        // Si no hay resultados, sugerir zonas cercanas o ampliar búsqueda
+        let sugerencias = [];
+        
+        // Si el usuario proporcionó ubicación, sugerir zonas cercanas
+        if (lat && lng && radio_km) {
+            const [parqueosCercanos] = await pool.query(`
+                SELECT DISTINCT 
+                    SUBSTRING_INDEX(p.direccion, ',', -1) AS zona
+                FROM parqueos p
+                WHERE p.activo = TRUE
+                AND (
+                    6371 * ACOS(
+                        COS(RADIANS(?)) * COS(RADIANS(CAST(p.latitud AS DECIMAL(10,8)))) *
+                        COS(RADIANS(CAST(p.longitud AS DECIMAL(11,8))) - RADIANS(?)) +
+                        SIN(RADIANS(?)) * SIN(RADIANS(CAST(p.latitud AS DECIMAL(10,8))))
+                    )
+                ) <= ?
+                LIMIT 5
+            `, [lat, lng, lat, radio_km * 2]); // Duplicar radio para sugerencias
+
+            sugerencias = parqueosCercanos
+                .map(p => p.zona.trim())
+                .filter(zona => zona.length > 3)
+                .slice(0, 5);
+        }
+
+        // Si no hay sugerencias de zonas cercanas, usar zonas populares
+        if (sugerencias.length === 0) {
+            sugerencias = zonasLaPaz.filter(zona => 
+                zona.toLowerCase().includes(queryNormalizada) ||
+                queryNormalizada.includes(zona.toLowerCase().substring(0, 3))
+            );
+            
+            if (sugerencias.length === 0) {
+                sugerencias = zonasLaPaz.slice(0, 5);
+            }
+        }
+
+        res.json({
+            resultados: [],
+            sugerencias,
+            mensaje: `No encontramos parqueos para "${query}". Prueba buscar por zona.`,
+            total: 0
+        });
+
+    } catch (error) {
+        console.error('Error en buscarParqueos:', error);
+        res.status(500).json({ mensaje: 'Error al buscar parqueos' });
+    }
+};

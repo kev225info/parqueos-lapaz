@@ -5,12 +5,14 @@ import {
     toggleFavorito, 
     updateDisponibilidad, 
     getMiParqueo,
-    getParqueoCompleto  
+    getParqueoCompleto,
+    buscarParqueos
 } from '../controllers/parqueoController.js';
 
 const router = Router();
 
 router.get('/', getParqueos);
+router.get('/buscar', buscarParqueos);
 router.get('/favoritos/:usuarioId', getFavoritos);
 router.post('/favoritos', toggleFavorito);
 router.patch('/:parqueoId/disponibilidad', updateDisponibilidad);
