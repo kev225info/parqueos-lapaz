@@ -7,7 +7,6 @@ import {
     getMiParqueo,
     getParqueoCompleto,
     buscarParqueos,
-    editarParqueo
 } from '../controllers/parqueoController.js';
 
 const router = Router();
