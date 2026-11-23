@@ -6,8 +6,8 @@ import {
     updateDisponibilidad, 
     getMiParqueo,
     getParqueoCompleto,
-    buscarParqueos
-    crearAdminParqueo
+    buscarParqueos,
+    crearAdminParqueo,
     editarParqueo
 } from '../controllers/parqueoController.js';
 
