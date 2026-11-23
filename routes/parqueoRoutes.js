@@ -7,6 +7,8 @@ import {
     getMiParqueo,
     getParqueoCompleto,
     buscarParqueos
+    crearAdminParqueo
+    editarParqueo
 } from '../controllers/parqueoController.js';
 
 const router = Router();
@@ -18,5 +20,6 @@ router.post('/favoritos', toggleFavorito);
 router.patch('/:parqueoId/disponibilidad', updateDisponibilidad);
 router.get('/mi-parqueo', getMiParqueo);
 router.get('/parqueo-completo', getParqueoCompleto); 
+router.patch('/:parqueoId/editar', editarParqueo); // HU-16
 
 export default router;

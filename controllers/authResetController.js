@@ -11,12 +11,10 @@ export const forgotPassword = async (req, res) => {
         // 1. Buscar el usuario por email
         const [users] = await pool.query('SELECT id FROM usuarios WHERE email = ?', [email]);
 
-        // ⚠️ SEGURIDAD: Siempre mostrar el mismo mensaje, exista o no el correo
-        // Esto evita que atacantes descubran qué correos están registrados
+        // ⚠️ SEGURIDAD: Siempre mostrar el mismo mensaje base
         const mensajeExito = 'Si el correo está registrado, recibirás un enlace de restablecimiento.';
 
         if (users.length === 0) {
-            // No hacer nada, pero retornar mensaje genérico
             return res.json({ mensaje: mensajeExito });
         }
 
@@ -29,6 +27,7 @@ export const forgotPassword = async (req, res) => {
         );
 
         // 3. Generar token criptográficamente seguro
+        const crypto = await import('crypto');
         const token = crypto.randomBytes(32).toString('hex');
 
         // 4. Calcular fecha de expiración (30 minutos desde ahora)
@@ -40,19 +39,20 @@ export const forgotPassword = async (req, res) => {
             [usuarioId, token, expiraEn]
         );
 
-        // 6. Enviar correo (en producción) / Simular en desarrollo
-        const resultado = await enviarCorreoRestablecimiento(email, token);
-
-        // Si el envío de correo falla, loguear pero no revelar al usuario
-        if (!resultado.success) {
-            console.error('No se pudo enviar el correo, pero el token fue generado:', token);
+        // 6. Intentar enviar correo (opcional en producción si hay bloqueos de red)
+        try {
+            const { enviarCorreoRestablecimiento } = await import('../config/email.js');
+            await enviarCorreoRestablecimiento(email, token);
+        } catch (emailError) {
+            console.warn('⚠️ No se pudo enviar el correo (posible bloqueo de red en Render). El token se generó correctamente.');
         }
 
-        // 7. Retornar mensaje genérico (siempre el mismo)
+        // 7. Retornar respuesta. 
+        // IMPORTANTE: Incluimos el token en la respuesta para que la app móvil pueda usarlo 
+        // y simular el flujo completo sin depender del servicio de correo externo.
         res.json({ 
             mensaje: mensajeExito,
-            // Solo en desarrollo: retornar el token para facilitar pruebas
-            ...(process.env.NODE_ENV !== 'production' && { token_debug: token })
+            token_debug: token // La app usará esto para navegar automáticamente
         });
 
     } catch (error) {

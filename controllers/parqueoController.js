@@ -1,4 +1,5 @@
 import pool from '../config/db.js';
+import { registrarEnBitacora, verificarPropiedadParqueo } from '../utils/auditoria.js';
 // OBTENER FAVORITOS DE UN USUARIO
 export const getFavoritos = async (req, res) => {
     const { usuarioId } = req.params;
@@ -67,25 +68,39 @@ export const getParqueos = async (req, res) => {
 };
 
 // ACTUALIZAR DISPONIBILIDAD Y REGISTRAR HISTORIAL
+
+
 export const updateDisponibilidad = async (req, res) => {
     const { parqueoId } = req.params;
-    const { cupos_libres, cupos_ocupados, usuario_id } = req.body;
+    const { cupos_libres, cupos_ocupados, usuario_id, client_updated_at } = req.body;
 
     try {
-        // 1. Verificar permisos del usuario
-        const [user] = await pool.query('SELECT rol, parqueo_id FROM usuarios WHERE id = ?', [usuario_id]);
-        if (user.length === 0) return res.status(401).json({ mensaje: 'Usuario no encontrado' });
+        // 1. VALIDACIÓN DE PROPIEDAD (Restricción por propiedad)
+        // No confiamos en el parqueoId del body, verificamos que el usuario sea dueño de ese parqueoId
+        const esDueno = await verificarPropiedadParqueo(usuario_id, parqueoId);
+        const [adminCheck] = await pool.query('SELECT rol FROM usuarios WHERE id = ?', [usuario_id]);
+        const esSuperAdmin = adminCheck.length > 0 && adminCheck[0].rol === 'admin';
 
-        const esSuperAdmin = user[0].rol === 'admin';
-        const esDueno = user[0].rol === 'admin_parqueo' && user[0].parqueo_id == parqueoId;
-
-        if (!esSuperAdmin && !esDueno) {
-            return res.status(403).json({ mensaje: 'No tienes permisos para modificar este parqueo' });
+        if (!esDueno && !esSuperAdmin) {
+            return res.status(403).json({ mensaje: 'No tienes permisos para modificar este parqueo.' });
         }
 
-        // 2. Obtener cupos anteriores para el historial
-        const [current] = await pool.query('SELECT cupos_libres FROM disponibilidad WHERE parqueo_id = ?', [parqueoId]);
-        const cupos_anteriores = current.length > 0 ? current[0].cupos_libres : 0;
+        // 2. CONTROL DE CONCURRENCIA (Optimistic Locking)
+        const [currentDisp] = await pool.query('SELECT updated_at, cupos_libres FROM disponibilidad WHERE parqueo_id = ?', [parqueoId]);
+        if (currentDisp.length === 0) return res.status(404).json({ mensaje: 'Disponibilidad no encontrada' });
+
+        const dbUpdatedAt = new Date(currentDisp[0].updated_at).getTime();
+        const clientUpdatedAt = client_updated_at ? new Date(client_updated_at).getTime() : 0;
+
+        if (clientUpdatedAt > 0 && dbUpdatedAt > clientUpdatedAt) {
+            return res.status(409).json({ 
+                mensaje: 'CONFLICTO: Otro administrador modificó este registro mientras editabas. Por favor, recarga los datos.',
+                codigo: 'CONCURRENCY_CONFLICT'
+            });
+        }
+
+        const valorAnterior = { cupos_libres: currentDisp[0].cupos_libres };
+        const valorNuevo = { cupos_libres, cupos_ocupados };
 
         // 3. Actualizar disponibilidad
         await pool.query(
@@ -93,13 +108,10 @@ export const updateDisponibilidad = async (req, res) => {
             [cupos_libres, cupos_ocupados, parqueoId]
         );
 
-        // 4. Registrar en historial
-        await pool.query(
-            'INSERT INTO historial_disponibilidad (parqueo_id, cupos_libres_anterior, cupos_libres_nuevo, usuario_id) VALUES (?, ?, ?, ?)',
-            [parqueoId, cupos_anteriores, cupos_libres, usuario_id]
-        );
+        // 4. Registrar en bitácora (HU-14)
+        await registrarEnBitacora(usuario_id, 'ACTUALIZAR_DISP', 'disponibilidad', parqueoId, valorAnterior, valorNuevo);
 
-        res.json({ mensaje: 'Disponibilidad actualizada correctamente' });
+        res.json({ mensaje: 'Disponibilidad actualizada y registrada en bitácora' });
     } catch (error) {
         console.error(error);
         res.status(500).json({ mensaje: 'Error al actualizar la disponibilidad' });
@@ -132,6 +144,7 @@ export const getParqueoCompleto = async (req, res) => {
     try {
         const [rows] = await pool.query(`
             SELECT 
+                p.updated_at,
                 p.id AS parqueo_id,
                 p.nombre AS parqueo_nombre,
                 p.direccion,
