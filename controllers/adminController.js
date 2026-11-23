@@ -1,5 +1,4 @@
 import { registrarEnBitacora } from '../utils/auditoria.js';
-export { crearAdminParqueo, editarParqueo };
 export const crearAdminParqueo = async (req, res) => {
     const { 
         admin_nombre, admin_email, admin_celular, admin_password, 
