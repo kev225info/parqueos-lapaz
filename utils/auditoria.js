@@ -16,7 +16,7 @@ export const registrarEnBitacora = async (usuario_id, accion, tabla, registro_id
 // Función para verificar que el admin_parqueo es dueño del parqueo (Prevención de IDOR)
 export const verificarPropiedadParqueo = async (usuario_id, parqueo_id) => {
     const [rows] = await pool.query(
-        'SELECT id FROM usuarios WHERE id = ? AND rol = "admin_parqueo" AND parqueo_id = ?',
+        'SELECT id FROM usuarios WHERE id = ? AND rol = 'admin_parqueo' AND parqueo_id = ?',
         [usuario_id, parqueo_id]
     );
     return rows.length > 0;
