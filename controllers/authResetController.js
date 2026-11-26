@@ -50,10 +50,9 @@ export const forgotPassword = async (req, res) => {
         // 7. Retornar respuesta. 
         // IMPORTANTE: Incluimos el token en la respuesta para que la app móvil pueda usarlo 
         // y simular el flujo completo sin depender del servicio de correo externo.
-        res.json({ 
-            mensaje: mensajeExito,
-            token_debug: token // La app usará esto para navegar automáticamente
-        });
+        // Solo para demos: definir EXPOSE_RESET_TOKEN=true en el servidor. En producción NO se expone.
+        const exponer = process.env.EXPOSE_RESET_TOKEN === 'true';
+        res.json(exponer ? { mensaje: mensajeExito, token_debug: token } : { mensaje: mensajeExito });
 
     } catch (error) {
         console.error('Error en forgotPassword:', error);
@@ -71,8 +70,8 @@ export const resetPassword = async (req, res) => {
             return res.status(400).json({ mensaje: 'Token y nueva contraseña son requeridos' });
         }
 
-        if (nueva_password.length < 6) {
-            return res.status(400).json({ mensaje: 'La contraseña debe tener al menos 6 caracteres' });
+        if (nueva_password.length < 8) {
+            return res.status(400).json({ mensaje: 'La contraseña debe tener al menos 8 caracteres' });
         }
 
         // 2. Buscar el token en la base de datos
