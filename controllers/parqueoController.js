@@ -12,7 +12,7 @@ const COLUMNAS = `
     p.tarifa_por_hora, p.tarifa_por_dia, p.horario_apertura, p.horario_cierre,
     p.tipo_vehiculo, p.tipo, p.servicios, p.descripcion, p.imagen_url, p.activo, p.capacidad_total,
     d.cupos_libres, d.cupos_ocupados, d.updated_at AS ultima_actualizacion,
-    u.telefono AS telefono_contacto`;
+    u.telefono AS telefono_contacto,u.nombre AS admin_nombre`;
 
 const FROM = `
     FROM parqueos p
